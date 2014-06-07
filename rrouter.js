@@ -486,7 +486,7 @@ module.exports = {
   return __browserify__('./lib/');
 });
 
-},{"./lib/":13}],4:[function(__browserify__,module,exports){
+},{"./lib/":14}],4:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -536,9 +536,9 @@ var LinkMixin = {
   activate: function() {
     var routing = this.getRouting();
     if (this.props.href) {
-      routing.navigate(this.props.href);
+      routing.navigate(this.props.href, this.props.navigation);
     } else if (this.props.to) {
-      routing.navigateTo(this.props.to, this.props);
+      routing.navigateTo(this.props.to, this.props, this.props.navigation);
     } else {
       invariant(
         false,
@@ -563,7 +563,7 @@ var LinkMixin = {
 
 module.exports = LinkMixin;
 
-},{"./RoutingContextMixin":6,"./invariant":14}],6:[function(__browserify__,module,exports){
+},{"./RoutingContextMixin":6,"./invariant":15}],6:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -624,7 +624,7 @@ var RoutingContextMixin = {
 
 module.exports = RoutingContextMixin;
 
-},{"./invariant":14}],7:[function(__browserify__,module,exports){
+},{"./invariant":15}],7:[function(__browserify__,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -760,7 +760,7 @@ function createView(match) {
 module.exports = createView;
 module.exports.getViewProps = getViewProps;
 
-},{"./getStepProps":12,"./invariant":14,"./merge":18}],9:[function(__browserify__,module,exports){
+},{"./getStepProps":13,"./invariant":15,"./merge":20}],9:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -902,7 +902,124 @@ module.exports = {
   fetchProps:fetchProps
 };
 
-},{"./emptyFunction":10,"./getStepProps":12,"./merge":18}],10:[function(__browserify__,module,exports){
+},{"./emptyFunction":11,"./getStepProps":13,"./merge":20}],10:[function(__browserify__,module,exports){
+/**
+ * @jsx React.DOM
+ */
+'use strict';
+
+var merge = __browserify__('./merge');
+
+var slashes = /(^\/)|(\/$)/g;
+
+/**
+ * Route desriptor constructor
+ *
+ * @param {Object} props
+ * @param {Object...} children
+ * @returns {Route}
+ */
+function Route(props) {
+  props = props || {};
+
+  var path = props.path ?
+    props.path.replace(slashes, '') :
+    undefined;
+
+  delete props.path;
+
+  var view = props.view;
+  delete props.view;
+
+  var viewPromise = props.viewPromise;
+  delete props.viewPromise;
+
+  var name = props.name;
+  delete props.name;
+
+  var __scope = props.__scope;
+  delete props.__scope;
+
+  var args = Array.prototype.slice.call(arguments, 1);
+
+  var children = [];
+
+  // so we support passing routes as arguments and arrays
+  for (var i = 0, len = args.length; i < len; i++) {
+    if (Array.isArray(args[i])) {
+      children = children.concat(args[i]);
+    } else {
+      children.push(args[i]);
+    }
+  }
+
+  var route = {path:path, name:name, view:view, viewPromise:viewPromise, props:props, children:children, __scope:__scope};
+  buildNameIndex(route);
+  return route;
+}
+
+function Routes(props) {
+  props = merge(props, {__scope: true});
+  var args = Array.prototype.slice.call(arguments, 1);
+  args.unshift(props);
+  return Route.apply(null, args);
+}
+
+function buildNameIndex(route) {
+  if (route.__nameIndex !== undefined) {
+    return;
+  }
+
+  var index = {};
+  var prefix = route.name ? route.name + '/' : '';
+
+  if (route.children && route.children.length > 0) {
+    for (var i = 0, len = route.children.length; i < len; i++) {
+      var r = route.children[i];
+      buildNameIndex(r);
+      for (var name in r.__nameIndex) {
+        index[prefix + name] = [route].concat(r.__nameIndex[name]);
+      }
+    }
+  }
+  
+  if (route.name !== undefined) {
+    index[route.name] = [route];
+  }
+
+  Object.defineProperty(route, '__nameIndex', {
+    enumerable: false,
+    value: index
+  });
+}
+
+function getTraceByName(route, name) {
+  return route.__nameIndex[name];
+}
+
+function hasView(route) {
+  return route.view !== undefined || route.viewPromise !== undefined;
+}
+
+function isRoutes(routes) {
+  var keys = Object.keys(routes);
+  return (
+    keys.indexOf('path') > -1
+    && keys.indexOf('view') > -1
+    && keys.indexOf('props') > -1
+    && keys.indexOf('children') > -1
+  );
+}
+
+module.exports = {
+  Route:Route,
+  Routes:Routes,
+  isRoutes:isRoutes,
+  getTraceByName:getTraceByName,
+  hasView:hasView
+};
+
+},{"./merge":20}],11:[function(__browserify__,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -948,7 +1065,7 @@ copyProperties(emptyFunction, {
 
 module.exports = emptyFunction;
 
-},{"./copyProperties":7}],11:[function(__browserify__,module,exports){
+},{"./copyProperties":7}],12:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -980,7 +1097,7 @@ function fetchViews(match) {
 
 module.exports = fetchViews;
 
-},{"./merge":18}],12:[function(__browserify__,module,exports){
+},{"./merge":20}],13:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -998,46 +1115,41 @@ function getStepProps(step) {
 
 module.exports = getStepProps;
 
-},{"./mergeInto":20}],13:[function(__browserify__,module,exports){
+},{"./mergeInto":22}],14:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
 'use strict';
 
 var matchRoutes         = __browserify__('./matchRoutes');
+var data                = __browserify__('./data');
+var route               = __browserify__('./route');
 var createView          = __browserify__('./createView');
+var fetchViews          = __browserify__('./fetchViews');
 var PathnameRouting     = __browserify__('./routing/PathnameRouting');
 var HashRouting         = __browserify__('./routing/HashRouting');
 var Link                = __browserify__('./Link');
 var LinkMixin           = __browserify__('./LinkMixin');
-var route               = __browserify__('./route');
+var descriptors         = __browserify__('./descriptors');
 var RoutingContextMixin = __browserify__('./RoutingContextMixin');
 
-function isRoutes(routes) {
-  var keys = Object.keys(routes);
-  return (
-    keys.indexOf('path') > -1
-    && keys.indexOf('view') > -1
-    && keys.indexOf('props') > -1
-    && keys.indexOf('children') > -1
-  );
-}
-
 module.exports = {
-  isRoutes:isRoutes,
-  Routes: route.Routes,
-  Route: route.Route,
+  isRoutes: descriptors.isRoutes,
+  Routes: descriptors.Routes,
+  Route: descriptors.Route,
   Link:Link,
   LinkMixin:LinkMixin,
   matchRoutes:matchRoutes,
   createView:createView,
+  data:data,
   start: PathnameRouting.start.bind(PathnameRouting),
+  route:route,
   PathnameRouting:PathnameRouting,
   HashRouting:HashRouting,
   RoutingContextMixin:RoutingContextMixin
 };
 
-},{"./Link":4,"./LinkMixin":5,"./RoutingContextMixin":6,"./createView":8,"./matchRoutes":17,"./route":21,"./routing/HashRouting":22,"./routing/PathnameRouting":23}],14:[function(__browserify__,module,exports){
+},{"./Link":4,"./LinkMixin":5,"./RoutingContextMixin":6,"./createView":8,"./data":9,"./descriptors":10,"./fetchViews":12,"./matchRoutes":19,"./route":23,"./routing/HashRouting":24,"./routing/PathnameRouting":25}],15:[function(__browserify__,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -1101,7 +1213,19 @@ if ("development" !== 'production') {
 
 module.exports = invariant;
 
-},{}],15:[function(__browserify__,module,exports){
+},{}],16:[function(__browserify__,module,exports){
+/**
+ * @jsx React.DOM
+ */
+'use strict';
+
+function isString(o) {
+  return Object.prototype.toString.call(o) === '[object String]';
+}
+
+module.exports = isString;
+
+},{}],17:[function(__browserify__,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -1161,14 +1285,14 @@ var keyMirror = function(obj) {
 
 module.exports = keyMirror;
 
-},{"./invariant":14}],16:[function(__browserify__,module,exports){
+},{"./invariant":15}],18:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
 'use strict';
 
 var invariant       = __browserify__('./invariant');
-var getTraceByName  = __browserify__('./route').getTraceByName;
+var getTraceByName  = __browserify__('./descriptors').getTraceByName;
 
 function makeHref(routes, name, match, params) {
   params = params || {};
@@ -1222,15 +1346,16 @@ function getScopedTrace(routes, name, match) {
 module.exports = makeHref;
 module.exports.getPattern = getPattern;
 
-},{"./invariant":14,"./route":21}],17:[function(__browserify__,module,exports){
+},{"./descriptors":10,"./invariant":15}],19:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
 'use strict';
 
-var pattern = __browserify__('url-pattern');
-var qs      = __browserify__('qs');
-var hasView = __browserify__('./route').hasView;
+var pattern  = __browserify__('url-pattern');
+var qs       = __browserify__('qs');
+var hasView  = __browserify__('./descriptors').hasView;
+var isString = __browserify__('./isString');
 
 /**
  * Normalize path
@@ -1312,13 +1437,13 @@ function matchRoutesImpl(routes, path, query, trace, activeTrace, originalPath) 
         route.children, match._ ? match._[0] : '/', query,
         trace, activeTrace, originalPath);
     } else {
-      return {path: originalPath, route:route, trace:trace, activeTrace:activeTrace};
+      return {path: originalPath, query:query, route:route, trace:trace, activeTrace:activeTrace};
     }
   }
 
   return {
     path: originalPath,
-    query: query,
+    query:query,
     route: undefined,
     trace: [],
     activeTrace: []
@@ -1333,12 +1458,13 @@ function matchRoutesImpl(routes, path, query, trace, activeTrace, originalPath) 
  * @returns {Match}
  */
 function matchRoutes(routes, path, query) {
-  return matchRoutesImpl(routes, path, qs.parse(query));
+  query = query === undefined ? {} : isString(query) ? qs.parse(query) : query;
+  return matchRoutesImpl(routes, path, query);
 }
 
 module.exports = matchRoutes;
 
-},{"./route":21,"qs":1,"url-pattern":2}],18:[function(__browserify__,module,exports){
+},{"./descriptors":10,"./isString":16,"qs":1,"url-pattern":2}],20:[function(__browserify__,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -1377,7 +1503,7 @@ var merge = function(one, two) {
 
 module.exports = merge;
 
-},{"./mergeInto":20}],19:[function(__browserify__,module,exports){
+},{"./mergeInto":22}],21:[function(__browserify__,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -1515,7 +1641,7 @@ var mergeHelpers = {
 
 module.exports = mergeHelpers;
 
-},{"./invariant":14,"./keyMirror":15}],20:[function(__browserify__,module,exports){
+},{"./invariant":15,"./keyMirror":17}],22:[function(__browserify__,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -1562,113 +1688,37 @@ function mergeInto(one, two) {
 
 module.exports = mergeInto;
 
-},{"./mergeHelpers":19}],21:[function(__browserify__,module,exports){
+},{"./mergeHelpers":21}],23:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
 'use strict';
 
-var merge = __browserify__('./merge');
+var React       = (window.React);
+var Promise     = (window.Promise);
+var matchRoutes = __browserify__('./matchRoutes');
+var data        = __browserify__('./data');
+var createView  = __browserify__('./createView');
+var fetchViews  = __browserify__('./fetchViews');
 
-var slashes = /(^\/)|(\/$)/g;
-
-/**
- * Route desriptor constructor
- *
- * @param {Object} props
- * @param {Object...} children
- * @returns {Route}
- */
-function Route(props) {
-  props = props || {};
-
-  var path = props.path ?
-    props.path.replace(slashes, '') :
-    undefined;
-
-  delete props.path;
-
-  var view = props.view;
-  delete props.view;
-
-  var viewPromise = props.viewPromise;
-  delete props.viewPromise;
-
-  var name = props.name;
-  delete props.name;
-
-  var __scope = props.__scope;
-  delete props.__scope;
-
-  var args = Array.prototype.slice.call(arguments, 1);
-
-  var children = [];
-
-  // so we support passing routes as arguments and arrays
-  for (var i = 0, len = args.length; i < len; i++) {
-    if (Array.isArray(args[i])) {
-      children = children.concat(args[i]);
-    } else {
-      children.push(args[i]);
-    }
-  }
-
-  var route = {path:path, name:name, view:view, viewPromise:viewPromise, props:props, children:children, __scope:__scope};
-  buildNameIndex(route);
-  return route;
-}
-
-function Routes(props) {
-  props = merge(props, {__scope: true});
-  var args = Array.prototype.slice.call(arguments, 1);
-  args.unshift(props);
-  return Route.apply(null, args);
-}
-
-function buildNameIndex(route) {
-  if (route.__nameIndex !== undefined) {
-    return;
-  }
-
-  var index = {};
-  var prefix = route.name ? route.name + '/' : '';
-
-  if (route.children && route.children.length > 0) {
-    for (var i = 0, len = route.children.length; i < len; i++) {
-      var r = route.children[i];
-      buildNameIndex(r);
-      for (var name in r.__nameIndex) {
-        index[prefix + name] = [route].concat(r.__nameIndex[name]);
+function route(routes, path, query) {
+  query = query || '';
+  return new Promise(function(resolve, reject)  {
+    var match = matchRoutes(routes, path, query);
+    return fetchViews(match).then(data.fetch).then(function(match)  {
+      return function execute(func) {
+        React.withContext({match:match, routes:routes}, function()  {
+          var view = createView(match);
+          return func(view, match, {initial: true});
+        });
       }
-    }
-  }
-  
-  if (route.name !== undefined) {
-    index[route.name] = [route];
-  }
-
-  Object.defineProperty(route, '__nameIndex', {
-    enumerable: false,
-    value: index
+    }).then(resolve, reject);
   });
 }
 
-function getTraceByName(route, name) {
-  return route.__nameIndex[name];
-}
+module.exports = route;
 
-function hasView(route) {
-  return route.view !== undefined || route.viewPromise !== undefined;
-}
-
-module.exports = {
-  Route:Route,
-  Routes:Routes,
-  getTraceByName:getTraceByName,
-  hasView:hasView
-};
-
-},{"./merge":18}],22:[function(__browserify__,module,exports){
+},{"./createView":8,"./data":9,"./fetchViews":12,"./matchRoutes":19}],24:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -1710,17 +1760,17 @@ for(var Routing____Key in Routing){if(Routing.hasOwnProperty(Routing____Key)){Ha
   };
 
   HashRouting.prototype.doStart=function() {
-    window.addEventListener('hashchange', this.onChange);
+    window.addEventListener('hashchange', this.onBackButton);
   };
 
   HashRouting.prototype.doStop=function() {
-    window.removeEventListener('hashchange', this.onChange);
+    window.removeEventListener('hashchange', this.onBackButton);
   };
 
 
 module.exports = HashRouting;
 
-},{"./Routing":24}],23:[function(__browserify__,module,exports){
+},{"./Routing":26}],25:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -1747,17 +1797,17 @@ for(var Routing____Key in Routing){if(Routing.hasOwnProperty(Routing____Key)){Pa
   };
 
   PathnameRouting.prototype.doStart=function() {
-    window.addEventListener('popstate', this.onChange);
+    window.addEventListener('popstate', this.onBackButton);
   };
 
   PathnameRouting.prototype.doStop=function() {
-    window.removeEventListener('popstate', this.onChange);
+    window.removeEventListener('popstate', this.onBackButton);
   };
 
 
 module.exports = PathnameRouting;
 
-},{"./Routing":24}],24:[function(__browserify__,module,exports){
+},{"./Routing":26}],26:[function(__browserify__,module,exports){
 /**
  * @jsx React.DOM
  */
@@ -1782,46 +1832,60 @@ function throwError(err) {
     this.onRoute = onRoute;
     this.onError = onError || throwError;
     this.onChange = this.onChange.bind(this);
+    this.onBackButton = this.onBackButton.bind(this);
     this.path = undefined;
     this.match = undefined;
     this.started = false;
   }
 
-  Routing.prototype.onChange=function() {
+  Routing.prototype.onChange=function(navigation) {
+    navigation = navigation || {};
     var path = this.getPath();
     var query = this.getQuery();
     if (this.path !== path || this.query !== query) {
-      this.path = path;
-      this.query = query;
-      this.match = matchRoutes(this.routes, path, query);
-
-      var expectedMatch = this.match;
-
-      var render = function(match)  {
-        if (this.match === expectedMatch) {
-          this.renderView(match);
-        }
-      }.bind(this);
-
-      var promise = fetchViews(this.match);
-
-      if (promise.isFulfilled()) {
-        render(data.fetchProgressively(promise.value(), render, this.onError));
-      } else {
-        promise.then(function(match)  {
-          render(data.fetchProgressively(match, render, this.onError));
-        }.bind(this), this.onError);
-      }
-
-      return this.match;
+      this.$Routing_route(path, query, navigation);
     }
   };
 
-  Routing.prototype.renderView=function(match) {
+  Routing.prototype.onBackButton=function() {
+    this.onChange({back: true});
+  };
+
+  Routing.prototype.update=function() {
+    this.$Routing_route(this.getPath(), this.getQuery());
+  };
+
+  Routing.prototype.$Routing_route=function(path, query, navigation) {
+    this.path = path;
+    this.query = query;
+    this.match = matchRoutes(this.routes, path, query);
+
+    var expectedMatch = this.match;
+
+    var render = function(match)  {
+      if (this.match === expectedMatch) {
+        this.renderView(match, navigation);
+      }
+    }.bind(this);
+
+    var promise = fetchViews(this.match);
+
+    if (promise.isFulfilled()) {
+      render(data.fetchProgressively(promise.value(), render, this.onError));
+    } else {
+      promise.then(function(match)  {
+        render(data.fetchProgressively(match, render, this.onError));
+      }.bind(this), this.onError);
+    }
+
+    return this.match;
+  };
+
+  Routing.prototype.renderView=function(match, navigation) {
     var context = {match:match, routing: this, routes: this.routes};
     React.withContext(context, function()  {
       var view = createView(match);
-      this.onRoute(view, match);
+      this.onRoute(view, match, navigation);
     }.bind(this));
   };
 
@@ -1832,7 +1896,7 @@ function throwError(err) {
     } else {
       this.pushPath(path, navigation);
     }
-    return this.onChange();
+    return this.onChange(navigation);
   };
 
   Routing.prototype.navigateTo=function(routeRef, props, navigation) {
@@ -1851,7 +1915,7 @@ function throwError(err) {
   Routing.prototype.start=function() {
     if (!this.started) {
       this.doStart();
-      this.onChange();
+      this.onChange({initial: true});
       this.started = true;
     }
     return this;
@@ -1872,4 +1936,4 @@ function throwError(err) {
 
 module.exports = Routing;
 
-},{"../createView":8,"../data":9,"../fetchViews":11,"../makeHref":16,"../matchRoutes":17,"qs":1}]},{},[3])
+},{"../createView":8,"../data":9,"../fetchViews":12,"../makeHref":18,"../matchRoutes":19,"qs":1}]},{},[3])
